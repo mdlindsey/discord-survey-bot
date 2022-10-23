@@ -10,9 +10,7 @@ const MSG_COMPLETE = 'Survey complete, thank you'
 
 const client = new Client()
 client.login(DISCORD_CLIENT_TOKEN)
-client.on('ready', () => {
-    console.log('✅ Survey Bot is ready')
-})
+client.on('ready', () => console.log(`Discord Bot "${client.user.tag}" ready`))
 client.on('message', (message) => {
     if (message.author.bot) {
         return
