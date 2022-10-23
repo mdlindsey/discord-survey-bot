@@ -9,7 +9,7 @@ const { DISCORD_KEYWORD, DISCORD_CLIENT_TOKEN } = process.env
 const client = new Client()
 client.login(DISCORD_CLIENT_TOKEN)
 client.on('ready', () => {
-    console.log('Discord Coaching Bot is ready for action!')
+    console.log('✅ Survey Bot is ready')
 })
 client.on('message', (message) => {
     if (message.author.bot) {
@@ -27,18 +27,6 @@ class Reactions {
     static Deny    = '❌'
 }
 
-class SurveyStep {
-    constructor(client, message, next, prev) {
-        this.client = client
-        this.message = message
-        this.next = next
-        this.prev = prev
-    }
-    async Exec() {
-
-    }
-}
-
 class Survey {
     LastMessage = null
     ActiveStepIdx = 0
@@ -46,7 +34,7 @@ class Survey {
     StepProperties = [
         {
             incoming: msg => this.UserDataStore[msg.author.id] = { discord: msg.author },
-            message: 'What is your Epic ID?',
+            outgoing: () => 'What is your Epic ID?',
         },
         {
             incoming: async msg => {
@@ -55,16 +43,24 @@ class Survey {
                 await new Promise(r => setTimeout(r, 3500))
                 loadingMsg.delete()
             },
-            message: 'Does this look correct?',
-            attachments: ['https://i.ibb.co/SJLQRdS/image.png'],
-            reactions: {
-                [Reactions.Approve]: () => {
-                    this.ActiveStepIdx++
-                },
-                [Reactions.Deny]: () => {
-                    this.ActiveStepIdx--
-                },
-            }
+            outgoing: async msg => {
+                const { epic } = this.UserDataStore[msg.author.id]
+                return {
+                    content: [
+                        'Does this look correct?',
+                        `https://rocketleague.tracker.network/rocket-league/profile/epic/${epic}/overview`
+                    ],
+                    // files: ['https://i.ibb.co/SJLQRdS/image.png'],
+                    reactions: {
+                        [Reactions.Approve]: () => {
+                            this.ActiveStepIdx++
+                        },
+                        [Reactions.Deny]: () => {
+                            this.ActiveStepIdx--
+                        },
+                    }
+                }
+            },
         },
         {
             message: 'Are you wanting replay analysis?',
@@ -96,16 +92,20 @@ class Survey {
         if (step.incoming) {
             await step.incoming(message)
         }
-        const payload = !step.attachments ? step.message : {
-            content: step.message,
-            files: step.attachments,
-        }
-        const reply = await message.reply(payload)
-        if (!step.reactions) {
+        const output = await step.outgoing(message)
+        if (typeof output === typeof 'str') {
+            await message.reply(output)
             this.ActiveStepIdx++
             return
         }
-        for(const emoji in step.reactions || {}) {
+        const { content, files, reactions } = output
+        const contentStr = Array.isArray(content) ? content.join('\n') : content
+        const reply = await message.reply({ content: contentStr, files })
+        if (!reactions) {
+            this.ActiveStepIdx++
+            return
+        }
+        for(const emoji in reactions || {}) {
             await reply.react(emoji)
             const filter = (reaction, user) => reaction.emoji.name === emoji
             const collector = reply.createReactionCollector(filter)
