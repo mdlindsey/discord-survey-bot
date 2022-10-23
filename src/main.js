@@ -6,6 +6,8 @@ dotenv.config()
 const Surveys = {}
 const { DISCORD_KEYWORD, DISCORD_CLIENT_TOKEN } = process.env
 
+const MSG_COMPLETE = 'Survey complete, thank you'
+
 const client = new Client()
 client.login(DISCORD_CLIENT_TOKEN)
 client.on('ready', () => {
@@ -15,11 +17,15 @@ client.on('message', (message) => {
     if (message.author.bot) {
         return
     }
-    if (Surveys[message.author.id]) {
-        Surveys[message.author.id].NextStep(message)
-    } else {
+    if (!Surveys[message.author.id]) {
         Surveys[message.author.id] = new Survey(message)
+        return
     }
+    if (Surveys[message.author.id].complete) {
+        message.reply(MSG_COMPLETE)
+        return
+    }
+    Surveys[message.author.id].NextStep(message)
 })
 
 class Reactions {
@@ -40,8 +46,8 @@ class Survey {
             incoming: async msg => {
                 this.UserDataStore[msg.author.id] = { epic: msg.content.trim() }
             },
-            outgoing: async msg => {
-                const { epic } = this.UserDataStore[msg.author.id]
+            outgoing: async message => {
+                const { epic } = this.UserDataStore[message.author.id]
                 return {
                     content: [
                         'Does this look correct?',
@@ -51,23 +57,27 @@ class Survey {
                     reactions: {
                         [Reactions.Approve]: () => {
                             this.ActiveStepIdx++
+                            this.NextStep(message)
                         },
                         [Reactions.Deny]: () => {
                             this.ActiveStepIdx--
+                            this.NextStep(message)
                         },
                     }
                 }
             },
         },
         {
-            outgoing: () => ({
+            outgoing: (message) => ({
                 content: 'Are you wanting replay analysis?',
                 reactions: {
                     [Reactions.Approve]: () => {
                         this.ActiveStepIdx++
+                        this.NextStep(message)
                     },
                     [Reactions.Deny]: () => {
                         this.ActiveStepIdx--
+                        this.NextStep(message)
                     },
                 }
             }),
@@ -85,9 +95,13 @@ class Survey {
     }
 
     async NextStep(message) {
+        if (Surveys[message.author.id]?.complete) {
+            return
+        }
         const step = this.StepProperties[this.ActiveStepIdx]
         if (!step) {
-            return message.reply('Survey complete, thank you')
+            Surveys[message.author.id].complete = true
+            return message.reply(MSG_COMPLETE)
         }
         if (step.incoming) {
             await step.incoming(message)
@@ -111,7 +125,6 @@ class Survey {
             const collector = reply.createReactionCollector(filter)
             collector.on('collect', (reaction, user) => {
                 reactions[emoji]()
-                this.NextStep(message)
             })
             collector.on('remove', (reaction, user) => {})
         }
