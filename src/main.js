@@ -39,9 +39,6 @@ class Survey {
         {
             incoming: async msg => {
                 this.UserDataStore[msg.author.id] = { epic: msg.content.trim() }
-                const loadingMsg = await msg.reply('One moment...')
-                await new Promise(r => setTimeout(r, 3500))
-                loadingMsg.delete()
             },
             outgoing: async msg => {
                 const { epic } = this.UserDataStore[msg.author.id]
@@ -63,15 +60,18 @@ class Survey {
             },
         },
         {
-            message: 'Are you wanting replay analysis?',
-            reactions: {
-                [Reactions.Approve]: () => {
-                    this.ActiveStepIdx++
-                },
-                [Reactions.Deny]: () => {
-                    this.ActiveStepIdx--
-                },
-            }
+            outgoing: () => ({
+                content: 'Are you wanting replay analysis?',
+                reactions: {
+                    [Reactions.Approve]: () => {
+                        this.ActiveStepIdx++
+                    },
+                    [Reactions.Deny]: () => {
+                        this.ActiveStepIdx--
+                    },
+                }
+            }),
+            
         }
     ]
     constructor(keywordMessage) {
@@ -110,15 +110,10 @@ class Survey {
             const filter = (reaction, user) => reaction.emoji.name === emoji
             const collector = reply.createReactionCollector(filter)
             collector.on('collect', (reaction, user) => {
-                // in case you want to do something when someone reacts with ❤
-                console.log('reaction added')
-                step.reactions[emoji]()
-                this.NextStep(message) // but what if we want to allow multiple reactions?
+                reactions[emoji]()
+                this.NextStep(message)
             })
-            collector.on('remove', (reaction, user) => {
-                // in case you want to do something when someone removes their reaction
-                console.log('reaction removed')
-            })
+            collector.on('remove', (reaction, user) => {})
         }
     }
 }
